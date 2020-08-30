@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from models.pointnet_util import PointNetSetAbstraction,PointNetFeaturePropagation
-
+from config import *
 
 class get_model(nn.Module):
     def __init__(self, num_classes, normal_channel=False):
@@ -55,4 +55,9 @@ class get_loss(nn.Module):
 
     def forward(self, pred, target,discriminator):
         loss = nn.CrossEntropyLoss()
-        return loss(pred ,target) + loss()
+        ce_loss = loss(pred ,target)
+        adv_loss = loss(discriminator,torch.ones(discriminator.shape[0]).cuda().to(torch.long))
+
+        print(ce_loss)
+        print(adv_loss)
+        return  ce_loss + landa*adv_loss
