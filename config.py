@@ -4,12 +4,16 @@ import os
 
 data_path = 'C:/Users/Barbod/Desktop/uni/research/tum/Pointnet_Pointnet2_pytorch/data' \
             '/shapenetcore_partanno_segmentation_benchmark_v0_normal'
-checkpoint_path = './trained_models/'
+checkpoint_path = './trained_models'
+generator_checkpoint_path = checkpoint_path + '/best_discriminator_model.pth'
+discriminator_checkpoint_path = checkpoint_path + '/best_discriminator_model.pth'
+
 
 torch.manual_seed(0)
 np.random.seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
+landa = 0
 npoint = 2048
 normal = True
 batch_size = 16
