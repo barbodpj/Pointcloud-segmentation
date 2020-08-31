@@ -2,12 +2,12 @@ from config import *
 import utils
 from tqdm import tqdm
 import provider
-
+import time
 def start():
     trainDataLoader, testDataLoader = utils.get_dataset()
     seg_classes, seg_label_to_cat = utils.get_seg_classes()
 
-    generator, generator_criterion, generator_start_epoch = utils.get_segmentation_network()
+    generator, generator_ce_criterion,generator_adv_criterion, generator_start_epoch = utils.get_generator_network()
     discriminator, discriminator_criterion, discriminator_start_epoch = utils.get_discriminator_network()
 
     print("Generator_start_epoch: ", generator_start_epoch)
@@ -60,7 +60,7 @@ def start():
             points = torch.Tensor(points)
             points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
             points = points.transpose(2, 1)
-            # discriminator_optimizer.zero_grad()
+            discriminator_optimizer.zero_grad()
             generator_optimizer.zero_grad()
 
 
@@ -87,22 +87,28 @@ def start():
             ###################################################
             ######### Training The Generator ##################
             ###################################################
-            generator = generator.train()
-            seg_pred, _ = generator(points, utils.to_categorical(label, num_classes))
 
+            seg_pred, _ = generator(points, utils.to_categorical(label, num_classes))
             point_with_features = torch.cat([seg_pred.transpose(1, 2), points], dim=1)
-            with torch.no_grad():
-                discriminator_pred, _ = discriminator(point_with_features)
+            discriminator_pred, _ = discriminator(point_with_features)
+
+            generator_loss = landa * generator_adv_criterion(discriminator_pred)
+            print("generator adv loss * lambda: " , generator_loss)
+
             seg_pred = seg_pred.contiguous().view(-1, num_part)
             target = target.view(-1, 1)[:, 0]
-            pred_choice = seg_pred.data.max(1)[1]
-            correct = pred_choice.eq(target.data).cpu().sum()
+            pred_choice = seg_pred.data.max(1)[1].detach().cpu()
+            correct = pred_choice.eq(target.detach().cpu().data).detach().cpu().sum()
             mean_correct.append(correct.item() / (batch_size * npoint))
-            generator_loss = generator_criterion(seg_pred, target, discriminator_pred)
-            print("generator loss: ", generator_loss)
+            generator_ce_loss =  generator_ce_criterion(seg_pred, target)
+            print("generator ce loss: " , generator_ce_loss)
+
+
+            generator_loss = generator_loss + generator_ce_loss
+            print("total loss: ", generator_loss)
             generator_loss.backward()
-            print(generator_loss)
             generator_optimizer.step()
+
         train_instance_acc = np.mean(mean_correct)
         with torch.no_grad():
             test_metrics = {}
