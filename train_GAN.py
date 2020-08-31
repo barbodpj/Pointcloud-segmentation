@@ -3,15 +3,16 @@ import utils
 from tqdm import tqdm
 import provider
 
-
 def start():
     trainDataLoader, testDataLoader = utils.get_dataset()
     seg_classes, seg_label_to_cat = utils.get_seg_classes()
+
     generator, generator_criterion, generator_start_epoch = utils.get_segmentation_network()
     discriminator, discriminator_criterion, discriminator_start_epoch = utils.get_discriminator_network()
 
     print("Generator_start_epoch: ", generator_start_epoch)
     print("discriminator_start_epoch: ", discriminator_start_epoch)
+
 
     generator_optimizer = torch.optim.Adam(
         generator.parameters(),
@@ -20,6 +21,7 @@ def start():
         eps=1e-08,
         weight_decay=decay_rate
     )
+
 
     discriminator_optimizer = torch.optim.Adam(
         discriminator.parameters(),
@@ -52,12 +54,15 @@ def start():
         for i, data in tqdm(enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9):
             points, label, target = data
             points = points.data.numpy()
+
             points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
             points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
             points = points.transpose(2, 1)
-            discriminator_optimizer.zero_grad()
+            # discriminator_optimizer.zero_grad()
+            generator_optimizer.zero_grad()
+
 
             ###################################################
             ######### Training The Discriminator ###############
@@ -84,6 +89,7 @@ def start():
             ###################################################
             generator = generator.train()
             seg_pred, _ = generator(points, utils.to_categorical(label, num_classes))
+
             point_with_features = torch.cat([seg_pred.transpose(1, 2), points], dim=1)
             with torch.no_grad():
                 discriminator_pred, _ = discriminator(point_with_features)
@@ -95,6 +101,7 @@ def start():
             generator_loss = generator_criterion(seg_pred, target, discriminator_pred)
             print("generator loss: ", generator_loss)
             generator_loss.backward()
+            print(generator_loss)
             generator_optimizer.step()
         train_instance_acc = np.mean(mean_correct)
         with torch.no_grad():
@@ -173,6 +180,8 @@ def start():
                 'model_state_dict': generator.state_dict(),
                 'optimizer_state_dict': generator_optimizer.state_dict(),
             }
+            torch.save(state, generator_checkpoint_path)
+
             print('Saving discriminator model...')
             state = {
                 'epoch': epoch,
@@ -194,6 +203,7 @@ def start():
         print('Best accuracy is: %.5f' % best_acc)
         print('Best class avg mIOU is: %.5f' % best_class_avg_iou)
         print('Best instance avg mIOU is: %.5f' % best_inctance_avg_iou)
+
 
 if __name__ == '__main__':
     start()
