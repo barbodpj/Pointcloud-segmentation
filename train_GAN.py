@@ -68,8 +68,9 @@ def start():
             ######### Training The Discriminator ###############
             ###################################################
             # Training with real batch
-            gt_features = torch.eye(50)[target].transpose(1, 2).cuda()
-            point_with_features = torch.cat([gt_features, points], dim=1)
+
+            gt_features = torch.eye(num_part)[target].transpose(1, 2).cuda()
+            point_with_features = torch.cat([points, gt_features], dim=1)
             discriminator = discriminator.train()
             pred, _ = discriminator(point_with_features)
             discriminator_loss = discriminator_criterion(pred, torch.ones(target.shape[0]).cuda().to(torch.long))
@@ -77,7 +78,7 @@ def start():
             # Training with fake batch
             with torch.no_grad():
                 pred, _ = generator(points, utils.to_categorical(label, num_classes))
-            point_with_features = torch.cat([pred.transpose(1, 2), points], dim=1)
+            point_with_features = torch.cat([points, pred.transpose(1, 2)], dim=1)
             pred, _ = discriminator(point_with_features)
             discriminator_loss = discriminator_criterion(pred, torch.zeros(target.shape[0]).cuda().to(torch.long))
             print("discriminator loss: ", discriminator_loss)
@@ -89,7 +90,7 @@ def start():
             ###################################################
 
             seg_pred, _ = generator(points, utils.to_categorical(label, num_classes))
-            point_with_features = torch.cat([seg_pred.transpose(1, 2), points], dim=1)
+            point_with_features = torch.cat([points, seg_pred.transpose(1, 2)], dim=1)
             discriminator_pred, _ = discriminator(point_with_features)
 
             generator_loss = landa * generator_adv_criterion(discriminator_pred)

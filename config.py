@@ -13,7 +13,7 @@ torch.manual_seed(0)
 np.random.seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
-landa = 0.01
+landa = 1
 npoint = 2048
 normal = True
 batch_size = 8
