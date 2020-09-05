@@ -47,7 +47,7 @@ class get_model(nn.Module):
         l0_points = self.fp1(l0_xyz, l1_xyz, torch.cat([cls_label_one_hot, l0_xyz, l0_points], 1), l1_points)
 
         # FC layers
-        feat = F.relu(self.bn1(self.conv1(l0_points)))
+        feat = F.leaky_relu(self.bn1(self.conv1(l0_points)))
         x = self.drop1(feat)
         x = self.conv2(x)
         x = F.log_softmax(x, dim=1)
@@ -60,9 +60,7 @@ class get_ce_loss(nn.Module):
         super(get_ce_loss, self).__init__()
 
     def forward(self, pred, target):
-        loss = nn.CrossEntropyLoss()
-        ce_loss = loss(pred, target)
-        # ce_loss = F.nll_loss(pred, target)
+        ce_loss = F.nll_loss(pred, target)
         return ce_loss
 
 class get_adv_loss(nn.Module):
@@ -70,7 +68,6 @@ class get_adv_loss(nn.Module):
         super(get_adv_loss, self).__init__()
 
     def forward(self,discriminator):
-        loss = nn.CrossEntropyLoss()
-        adv_loss = loss(discriminator, torch.ones(discriminator.shape[0]).cuda().to(torch.long))
+        adv_loss = F.nll_loss(discriminator, torch.ones(discriminator.shape[0]).cuda().to(torch.long))
 
         return adv_loss

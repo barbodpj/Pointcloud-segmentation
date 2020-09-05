@@ -23,13 +23,7 @@ def start():
     )
 
 
-    discriminator_optimizer = torch.optim.Adam(
-        discriminator.parameters(),
-        lr=learning_rate,
-        betas=(0.9, 0.999),
-        eps=1e-08,
-        weight_decay=decay_rate
-    )
+    discriminator_optimizer = torch.optim.SGD(discriminator.parameters(), lr=0.01, momentum=0.9)
 
     best_acc = 0
     global_epoch = generator_start_epoch
@@ -63,7 +57,6 @@ def start():
             discriminator_optimizer.zero_grad()
             generator_optimizer.zero_grad()
 
-
             ###################################################
             ######### Training The Discriminator ###############
             ###################################################
@@ -73,6 +66,8 @@ def start():
             point_with_features = torch.cat([points, gt_features], dim=1)
             discriminator = discriminator.train()
             pred, _ = discriminator(point_with_features)
+            print(pred[:,0])
+            exit(99)
             discriminator_loss = discriminator_criterion(pred, torch.ones(target.shape[0]).cuda().to(torch.long))
             discriminator_loss.backward()
             # Training with fake batch
@@ -105,10 +100,11 @@ def start():
             print("generator ce loss: " , generator_ce_loss)
 
 
-            generator_loss = generator_loss + generator_ce_loss
+            # generator_loss = generator_loss + generator_ce_loss
             print("total loss: ", generator_loss)
             generator_loss.backward()
             generator_optimizer.step()
+
 
         train_instance_acc = np.mean(mean_correct)
         with torch.no_grad():
@@ -176,7 +172,7 @@ def start():
 
         print('Epoch %d test Accuracy: %f  Class avg mIOU: %f   Inctance avg mIOU: %f' % (
             epoch + 1, test_metrics['accuracy'], test_metrics['class_avg_iou'], test_metrics['inctance_avg_iou']))
-        if (test_metrics['inctance_avg_iou'] >= best_inctance_avg_iou):
+        if (test_metrics['inctance_avg_iou'] >= 0):
             print('Saving Generator model...')
             state = {
                 'epoch': epoch,
