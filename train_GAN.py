@@ -3,16 +3,17 @@ import utils
 from tqdm import tqdm
 import provider
 import time
+
+
 def start():
     trainDataLoader, testDataLoader = utils.get_dataset()
     seg_classes, seg_label_to_cat = utils.get_seg_classes()
 
-    generator, generator_ce_criterion,generator_adv_criterion, generator_start_epoch = utils.get_generator_network()
+    generator, generator_ce_criterion, generator_adv_criterion, generator_start_epoch = utils.get_generator_network()
     discriminator, discriminator_criterion, discriminator_start_epoch = utils.get_discriminator_network()
 
     print("Generator_start_epoch: ", generator_start_epoch)
     print("discriminator_start_epoch: ", discriminator_start_epoch)
-
 
     generator_optimizer = torch.optim.Adam(
         generator.parameters(),
@@ -22,8 +23,7 @@ def start():
         weight_decay=decay_rate
     )
 
-
-    discriminator_optimizer = torch.optim.SGD(discriminator.parameters(), lr=0.01, momentum=0.9)
+    discriminator_optimizer = torch.optim.SGD(discriminator.parameters(), lr=0.001, momentum=0.9)
 
     best_acc = 0
     global_epoch = generator_start_epoch
@@ -62,25 +62,28 @@ def start():
             ###################################################
             # Training with real batch
 
+
             gt_features = torch.eye(num_part)[target].transpose(1, 2).cuda()
+            gt_features = (1-gt_features)*torch.rand(gt_features.shape).cuda()*0.1 + (gt_features*(1-torch.rand(gt_features.shape).cuda()*0.2))
+            gt_features = torch.log(gt_features)
             point_with_features = torch.cat([points, gt_features], dim=1)
             discriminator = discriminator.train()
             pred, _ = discriminator(point_with_features)
-            print(pred[:,0])
-            exit(99)
             discriminator_loss = discriminator_criterion(pred, torch.ones(target.shape[0]).cuda().to(torch.long))
             discriminator_loss.backward()
+            print("discriminator real loss: ", discriminator_loss)
+
             # Training with fake batch
             with torch.no_grad():
                 pred, _ = generator(points, utils.to_categorical(label, num_classes))
             point_with_features = torch.cat([points, pred.transpose(1, 2)], dim=1)
             pred, _ = discriminator(point_with_features)
             discriminator_loss = discriminator_criterion(pred, torch.zeros(target.shape[0]).cuda().to(torch.long))
-            print("discriminator loss: ", discriminator_loss)
+            print("discriminator fake loss: ", discriminator_loss)
             discriminator_loss.backward()
             discriminator_optimizer.step()
 
-            ###################################################
+            ################################################### 
             ######### Training The Generator ##################
             ###################################################
 
@@ -89,22 +92,19 @@ def start():
             discriminator_pred, _ = discriminator(point_with_features)
 
             generator_loss = landa * generator_adv_criterion(discriminator_pred)
-            print("generator adv loss * lambda: " , generator_loss)
+            print("generator adv loss * lambda: ", generator_loss)
 
             seg_pred = seg_pred.contiguous().view(-1, num_part)
             target = target.view(-1, 1)[:, 0]
             pred_choice = seg_pred.data.max(1)[1].detach().cpu()
             correct = pred_choice.eq(target.detach().cpu().data).detach().cpu().sum()
             mean_correct.append(correct.item() / (batch_size * npoint))
-            generator_ce_loss =  generator_ce_criterion(seg_pred, target)
-            print("generator ce loss: " , generator_ce_loss)
-
-
-            # generator_loss = generator_loss + generator_ce_loss
+            generator_ce_loss = generator_ce_criterion(seg_pred, target)
+            print("generator ce loss: ", generator_ce_loss)
+            generator_loss = generator_loss + generator_ce_loss
             print("total loss: ", generator_loss)
             generator_loss.backward()
             generator_optimizer.step()
-
 
         train_instance_acc = np.mean(mean_correct)
         with torch.no_grad():
