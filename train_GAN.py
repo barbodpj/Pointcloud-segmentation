@@ -63,22 +63,29 @@ def start():
             # Training with real batch
 
 
-            gt_features = torch.eye(num_part)[target].transpose(1, 2).cuda()
-            gt_features = (1-gt_features)*torch.rand(gt_features.shape).cuda()*0.1 + (gt_features*(1-torch.rand(gt_features.shape).cuda()*0.2))
+
+            with torch.no_grad():
+                pred, _ = generator(points, utils.to_categorical(label, num_classes))
+            pred = pred.transpose(1,2)
+            exp_pred = torch.exp(pred)
+            gt_pred = torch.gather(exp_pred,1,target[:,None,:])
+            normalized_gt = torch.max(gt_pred,torch.zeros(points.shape[0],1,npoint).cuda()+eta)
+            gt_features = (1-normalized_gt)/(1-gt_pred) * exp_pred
+            gt_features.scatter_(1,target[:,None,:],normalized_gt)
             gt_features = torch.log(gt_features)
+
+
             point_with_features = torch.cat([points, gt_features], dim=1)
             discriminator = discriminator.train()
-            pred, _ = discriminator(point_with_features)
-            discriminator_loss = discriminator_criterion(pred, torch.ones(target.shape[0]).cuda().to(torch.long))
+            D_score, _ = discriminator(point_with_features)
+            discriminator_loss = discriminator_criterion(D_score, torch.ones(target.shape[0]).cuda().to(torch.long))
             discriminator_loss.backward()
             print("discriminator real loss: ", discriminator_loss)
 
             # Training with fake batch
-            with torch.no_grad():
-                pred, _ = generator(points, utils.to_categorical(label, num_classes))
-            point_with_features = torch.cat([points, pred.transpose(1, 2)], dim=1)
-            pred, _ = discriminator(point_with_features)
-            discriminator_loss = discriminator_criterion(pred, torch.zeros(target.shape[0]).cuda().to(torch.long))
+            point_with_features = torch.cat([points, pred], dim=1)
+            D_score, _ = discriminator(point_with_features)
+            discriminator_loss = discriminator_criterion(D_score, torch.zeros(target.shape[0]).cuda().to(torch.long))
             print("discriminator fake loss: ", discriminator_loss)
             discriminator_loss.backward()
             discriminator_optimizer.step()

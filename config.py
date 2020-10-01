@@ -13,19 +13,20 @@ torch.manual_seed(0)
 np.random.seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
-landa = 0.1
+landa = 1
 npoint = 2048
 normal = True
-batch_size = 8
+batch_size = 16
+eta = 0.9
 num_part = 50
 num_classes = 16
 LEARNING_RATE_CLIP = 1e-5
 MOMENTUM_ORIGINAL = 0.1
-MOMENTUM_DECCAY = 0.5
-MOMENTUM_DECCAY_STEP = 20
+MOMENTUM_DECCAY = 0.8
+MOMENTUM_DECCAY_STEP = 10
 learning_rate = 0.001
 decay_rate = 1e-4
 final_epoch = 251
-lr_decay = 0.5
-step_size = 20
+lr_decay = 0.8
+step_size = 10
 
