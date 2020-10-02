@@ -25,6 +25,14 @@ def start():
 
     discriminator_optimizer = torch.optim.SGD(discriminator.parameters(), lr=0.001, momentum=0.9)
 
+    if generator_start_epoch>0:
+        checkpoint = torch.load(generator_checkpoint_path)
+        generator_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    if discriminator_start_epoch>0:
+        checkpoint = torch.load(discriminator_checkpoint_path)
+        discriminator_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
     best_acc = 0
     global_epoch = generator_start_epoch
     best_class_avg_iou = 0
@@ -70,7 +78,8 @@ def start():
             exp_pred = torch.exp(pred)
             gt_pred = torch.gather(exp_pred,1,target[:,None,:])
             normalized_gt = torch.max(gt_pred,torch.zeros(points.shape[0],1,npoint).cuda()+eta)
-            gt_features = (1-normalized_gt)/(1-gt_pred) * exp_pred
+            gt_features = (1-normalized_gt)/(1+1e-6-gt_pred) * exp_pred
+            gt_features = gt_features + 1e-6
             gt_features.scatter_(1,target[:,None,:],normalized_gt)
             gt_features = torch.log(gt_features)
 
