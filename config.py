@@ -7,7 +7,7 @@ data_path = 'C:/Users/Barbod/Desktop/uni/research/tum/Pointnet_Pointnet2_pytorch
 checkpoint_path = './trained_models'
 generator_checkpoint_path = checkpoint_path + '/best_generator_model.pth'
 discriminator_checkpoint_path = checkpoint_path + '/best_discriminator_model.pth'
-log_file = open("./log.txt","a")
+log_file = open(checkpoint_path + "/log.txt","a")
 
 torch.manual_seed(0)
 np.random.seed(0)
