@@ -1,7 +1,7 @@
 from torch.utils.tensorboard import SummaryWriter
 import re
 log_file =  open("trained_models/log.txt","r")
-writer = SummaryWriter()
+writer = SummaryWriter("my_experiment")
 
 def extract_information(s):
     loss = dict()
@@ -10,21 +10,23 @@ def extract_information(s):
     loss['generator_adv_loss1'] = float(re.search(".*tensor\((\d*\.\d*)", s[2])[1])
     loss['generator_ce_loss1'] = float(re.search(".*tensor\((\d*\.\d*)", s[3])[1])
     loss['generator_total_loss1'] = float(re.search(".*tensor\((\d*\.\d*)", s[4])[1])
-    loss['generator_adv_loss2'] = float(re.search(".*tensor\((\d*\.\d*)", s[5])[1])
-    loss['generator_ce_loss2'] = float(re.search(".*tensor\((\d*\.\d*)", s[6])[1])
-    loss['generator_total_loss2'] = float(re.search(".*tensor\((\d*\.\d*)", s[7])[1])
+    # loss['generator_adv_loss2'] = float(re.search(".*tensor\((\d*\.\d*)", s[5])[1])
+    # loss['generator_ce_loss2'] = float(re.search(".*tensor\((\d*\.\d*)", s[6])[1])
+    # loss['generator_total_loss2'] = float(re.search(".*tensor\((\d*\.\d*)", s[7])[1])
 
     return loss
 
-
-for j in range(829):
-    x = []
-    for i in range(8):
-        x.append(log_file.readline()[:-1])
-    log_file.readline()
-    loss = extract_information(x)
-    for key in loss.keys():
-        writer.add_scalar('Loss/' + key, loss[key], j)
+for epoch in range(45):
+    for j in range(875):
+        x = []
+        for i in range(8):
+            x.append(log_file.readline()[:-1])
+        log_file.readline()
+        if j%20 !=0:
+            continue
+        loss = extract_information(x)
+        for key in loss.keys():
+            writer.add_scalar('Loss/' + key, loss[key], j+ 875*epoch)
 
 # for n_iter in range(100):
 #     writer.add_scalar('Loss/train', np.random.random(), n_iter)

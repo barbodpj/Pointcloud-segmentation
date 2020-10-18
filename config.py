@@ -14,20 +14,21 @@ np.random.seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 landa = 2
-generator_training_steps = 2
+generator_training_steps = 1
 npoint = 2048
 normal = True
 batch_size = 8
 eta = 0.9
 num_part = 50
 num_classes = 16
-# LEARNING_RATE_CLIP = 1e-5
-# MOMENTUM_ORIGINAL = 0.1
-# MOMENTUM_DECCAY = 0.8
-# MOMENTUM_DECCAY_STEP = 10
-generator_learning_rate = 0.0004
+LEARNING_RATE_CLIP = 1e-5
+MOMENTUM_ORIGINAL = 0.1
+MOMENTUM_DECCAY = 0.5
+generator_learning_rate = 0.001
+discriminator_learning_rate = 0.001
 decay_rate = 1e-4
 final_epoch = 251
-lr_decay = 0.8
-step_size = 10
-
+lr_decay = 0.5
+step_size = 20
+dicriminator_loss_threshold = 0
+generator_adv_training_step = 1
