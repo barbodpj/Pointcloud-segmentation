@@ -23,7 +23,7 @@ def start():
         weight_decay=decay_rate
     )
 
-    discriminator_optimizer = torch.optim.SGD(discriminator.parameters(), lr=0.0004, momentum=0.9)
+    discriminator_optimizer = torch.optim.SGD(discriminator.parameters(), lr=discriminator_learning_rate, momentum=0.9)
 
     if generator_start_epoch > 0:
         checkpoint = torch.load(generator_checkpoint_path)
@@ -41,16 +41,16 @@ def start():
     for epoch in range(global_epoch, final_epoch):
         print('Epoch %d (%d/%s):' % (epoch + 1, epoch + 1, final_epoch))
         '''Adjust learning rate and BN momentum'''
-        # lr = max(generator_learning_rate * (lr_decay ** (epoch // step_size)), LEARNING_RATE_CLIP)
-        # print('Learning rate:%f' % lr)
-        # for param_group in generator_optimizer.param_groups:
-        #     param_group['lr'] = lr
+        lr = max(generator_learning_rate * (lr_decay ** (epoch // step_size)), LEARNING_RATE_CLIP)
+        print('Learning rate:%f' % lr)
+        for param_group in generator_optimizer.param_groups:
+            param_group['lr'] = lr
         mean_correct = []
-        # momentum = MOMENTUM_ORIGINAL * (MOMENTUM_DECCAY ** (epoch // MOMENTUM_DECCAY_STEP))
-        # if momentum < 0.01:
-        #     momentum = 0.01
-        # print('BN momentum updated to: %f' % momentum)
-        # generator = generator.apply(lambda x: utils.bn_momentum_adjust(x, momentum))
+        momentum = MOMENTUM_ORIGINAL * (MOMENTUM_DECCAY ** (epoch // step_size))
+        if momentum < 0.01:
+            momentum = 0.01
+        print('BN momentum updated to: %f' % momentum)
+        generator = generator.apply(lambda x: utils.bn_momentum_adjust(x, momentum))
 
         '''learning one epoch'''
         for i, data in tqdm(enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9):
@@ -63,7 +63,6 @@ def start():
             points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
             points = points.transpose(2, 1)
             discriminator_optimizer.zero_grad()
-            generator_optimizer.zero_grad()
 
             ###################################################
             ######### Training The Discriminator ###############
@@ -75,40 +74,43 @@ def start():
             pred = pred.transpose(1, 2)
             exp_pred = torch.exp(pred)
             gt_pred = torch.gather(exp_pred, 1, target[:, None, :])
-            normalized_gt = torch.max(gt_pred, torch.zeros(points.shape[0], 1, npoint).cuda() + eta)
-            gt_features = (1 - normalized_gt) / (1 + 1e-6 - gt_pred) * exp_pred
-            gt_features = gt_features + 1e-6
+            high_value = torch.clamp(eta + torch.normal(0, 1, (1,))[0] * 0.1, min=0.70, max=0.95)
+
+            normalized_gt = torch.max(gt_pred, torch.zeros(points.shape[0], 1, npoint).cuda() + high_value)
+            gt_features = (1 - normalized_gt) / ((1 - gt_pred) + 1e-10) * exp_pred
+            gt_features[gt_features == 0] = 1e-10
             gt_features.scatter_(1, target[:, None, :], normalized_gt)
             gt_features = torch.log(gt_features)
 
             point_with_features = torch.cat([points, gt_features], dim=1)
             discriminator = discriminator.train()
             D_score, _ = discriminator(point_with_features)
-            discriminator_loss = discriminator_criterion(D_score, torch.ones(target.shape[0]).cuda().to(torch.long))
-            discriminator_loss.backward()
+            discriminator_real_loss = discriminator_criterion(D_score,
+                                                              torch.ones(target.shape[0]).cuda().to(torch.long))
 
             prefix_str = "epoch " + str(epoch) + " step" + str(i) + " "
-            log_file.write(prefix_str + "discriminator real loss: " + str(discriminator_loss) + "\n")
+            log_file.write(prefix_str + "discriminator real loss: " + str(discriminator_real_loss) + "\n")
 
             # Training with fake batch
             point_with_features = torch.cat([points, pred], dim=1)
             D_score, _ = discriminator(point_with_features)
-            discriminator_loss = discriminator_criterion(D_score, torch.zeros(target.shape[0]).cuda().to(torch.long))
-            log_file.write(prefix_str + "discriminator fake loss: " + str(discriminator_loss) + "\n")
+
+            discriminator_fake_loss = discriminator_criterion(D_score,
+                                                              torch.zeros(target.shape[0]).cuda().to(torch.long))
+            log_file.write(prefix_str + "discriminator fake loss: " + str(discriminator_fake_loss) + "\n")
+            discriminator_loss = discriminator_real_loss + discriminator_fake_loss
             discriminator_loss.backward()
             discriminator_optimizer.step()
-
             ################################################### 
             ######### Training The Generator ##################
             ###################################################
             for xx in range(generator_training_steps):
+                generator_optimizer.zero_grad()
                 seg_pred, _ = generator(points, utils.to_categorical(label, num_classes))
                 point_with_features = torch.cat([points, seg_pred.transpose(1, 2)], dim=1)
                 discriminator_pred, _ = discriminator(point_with_features)
-
                 generator_loss = landa * generator_adv_criterion(discriminator_pred)
-                log_file.write(prefix_str + "generator adv loss * lambda: " + str(generator_loss) + "\n")
-
+                log_file.write(prefix_str + "generator adv loss " + str(generator_loss / landa) + "\n")
                 seg_pred = seg_pred.contiguous().view(-1, num_part)
                 target = target.view(-1, 1)[:, 0]
                 pred_choice = seg_pred.data.max(1)[1].detach().cpu()
@@ -222,7 +224,6 @@ def start():
         print('Best accuracy is: %.5f' % best_acc)
         print('Best class avg mIOU is: %.5f' % best_class_avg_iou)
         print('Best instance avg mIOU is: %.5f' % best_inctance_avg_iou)
-
 
 if __name__ == '__main__':
     start()
