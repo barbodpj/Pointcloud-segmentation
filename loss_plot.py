@@ -16,10 +16,10 @@ def extract_information(s):
 
     return loss
 
-for epoch in range(45):
+for epoch in range(12):
     for j in range(875):
         x = []
-        for i in range(8):
+        for i in range(5):
             x.append(log_file.readline()[:-1])
         log_file.readline()
         if j%20 !=0:

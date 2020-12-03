@@ -37,11 +37,21 @@ def start():
     global_epoch = generator_start_epoch
     best_class_avg_iou = 0
     best_inctance_avg_iou = 0
+    r = 50
+
+    g_step = 0
 
     for epoch in range(global_epoch, final_epoch):
+        r += 1
+        if r < 50:
+            g_step = 0
+        else:
+            g_step = 1
+
         print('Epoch %d (%d/%s):' % (epoch + 1, epoch + 1, final_epoch))
         '''Adjust learning rate and BN momentum'''
-        lr = max(generator_learning_rate * (lr_decay ** (epoch // step_size)), LEARNING_RATE_CLIP)
+        #lr = max(generator_learning_rate * (lr_decay ** (epoch // step_size)), LEARNING_RATE_CLIP)
+        lr = generator_learning_rate
         print('Learning rate:%f' % lr)
         for param_group in generator_optimizer.param_groups:
             param_group['lr'] = lr
@@ -57,8 +67,8 @@ def start():
             points, label, target = data
             points = points.data.numpy()
 
-            points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
-            points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
+            #points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
+            #points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
             points = points.transpose(2, 1)
@@ -74,13 +84,13 @@ def start():
             pred = pred.transpose(1, 2)
             exp_pred = torch.exp(pred)
             gt_pred = torch.gather(exp_pred, 1, target[:, None, :])
-            high_value = torch.clamp(eta + torch.normal(0, 1, (1,))[0] * 0.1, min=0.70, max=0.95)
+            high_value = torch.clamp(tau + torch.normal(0, 1, (1,))[0] * 0.1, min=0.65, max=0.95)
 
             normalized_gt = torch.max(gt_pred, torch.zeros(points.shape[0], 1, npoint).cuda() + high_value)
             gt_features = (1 - normalized_gt) / ((1 - gt_pred) + 1e-10) * exp_pred
             gt_features[gt_features == 0] = 1e-10
             gt_features.scatter_(1, target[:, None, :], normalized_gt)
-            gt_features = torch.log(gt_features)
+            #gt_features = torch.log(gt_features)
 
             point_with_features = torch.cat([points, gt_features], dim=1)
             discriminator = discriminator.train()
@@ -92,7 +102,7 @@ def start():
             log_file.write(prefix_str + "discriminator real loss: " + str(discriminator_real_loss) + "\n")
 
             # Training with fake batch
-            point_with_features = torch.cat([points, pred], dim=1)
+            point_with_features = torch.cat([points, torch.exp(pred)], dim=1)
             D_score, _ = discriminator(point_with_features)
 
             discriminator_fake_loss = discriminator_criterion(D_score,
@@ -101,13 +111,13 @@ def start():
             discriminator_loss = discriminator_real_loss + discriminator_fake_loss
             discriminator_loss.backward()
             discriminator_optimizer.step()
-            ################################################### 
+            ###################################################
             ######### Training The Generator ##################
             ###################################################
-            for xx in range(generator_training_steps):
+            for xx in range(g_step):
                 generator_optimizer.zero_grad()
                 seg_pred, _ = generator(points, utils.to_categorical(label, num_classes))
-                point_with_features = torch.cat([points, seg_pred.transpose(1, 2)], dim=1)
+                point_with_features = torch.cat([points, torch.exp(seg_pred.transpose(1, 2))], dim=1)
                 discriminator_pred, _ = discriminator(point_with_features)
                 generator_loss = landa * generator_adv_criterion(discriminator_pred)
                 log_file.write(prefix_str + "generator adv loss " + str(generator_loss / landa) + "\n")
@@ -123,7 +133,7 @@ def start():
                 generator_loss.backward()
                 generator_optimizer.step()
             log_file.write("__________________________________________________________________________\n")
-
+            log_file.flush()
         train_instance_acc = np.mean(mean_correct)
         with torch.no_grad():
             test_metrics = {}
@@ -224,6 +234,7 @@ def start():
         print('Best accuracy is: %.5f' % best_acc)
         print('Best class avg mIOU is: %.5f' % best_class_avg_iou)
         print('Best instance avg mIOU is: %.5f' % best_inctance_avg_iou)
+
 
 if __name__ == '__main__':
     start()
